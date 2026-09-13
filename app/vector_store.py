@@ -1,5 +1,7 @@
-import chromadb
+import hashlib
 from pathlib import Path
+
+import chromadb
 
 from embeddings import create_embedding
 
@@ -15,13 +17,25 @@ collection = client.get_or_create_collection(
 )
 
 
+def create_document_id(source: str) -> str:
+    """
+    Create a stable ID for a document.
+    """
+
+    return hashlib.md5(
+        source.encode("utf-8")
+    ).hexdigest()
+
+
 def add_chunks(chunks: list[str], source: str):
     """
-    Generate embeddings for chunks and store them in ChromaDB.
+    Generate embeddings and store chunks in ChromaDB.
     """
 
     if not chunks:
         return
+
+    document_id = create_document_id(source)
 
     ids = []
     embeddings = []
@@ -30,16 +44,24 @@ def add_chunks(chunks: list[str], source: str):
 
     for index, chunk in enumerate(chunks):
 
-        print(f"Embedding chunk {index + 1}/{len(chunks)}...")
+        print(
+            f"Embedding chunk "
+            f"{index + 1}/{len(chunks)}..."
+        )
 
         embedding = create_embedding(chunk)
 
-        ids.append(f"{source}_{index}")
+        ids.append(
+            f"{document_id}_chunk_{index}"
+        )
+
         embeddings.append(embedding)
+
         documents.append(chunk)
 
         metadatas.append({
             "source": source,
+            "document_id": document_id,
             "chunk_index": index
         })
 
@@ -50,12 +72,35 @@ def add_chunks(chunks: list[str], source: str):
         metadatas=metadatas
     )
 
-    print(f"\nSuccessfully stored {len(chunks)} chunks.")
+    print(
+        f"\nSuccessfully stored "
+        f"{len(chunks)} chunks."
+    )
 
 
-def search_chunks(query: str, n_results: int = 3):
+def document_exists(source: str) -> bool:
     """
-    Search ChromaDB for chunks semantically similar to a query.
+    Check whether a document has already been indexed.
+    """
+
+    document_id = create_document_id(source)
+
+    results = collection.get(
+        where={
+            "document_id": document_id
+        },
+        limit=1
+    )
+
+    return len(results["ids"]) > 0
+
+
+def search_chunks(
+    query: str,
+    n_results: int = 3
+):
+    """
+    Search ChromaDB for semantically relevant chunks.
     """
 
     query_embedding = create_embedding(query)
@@ -68,21 +113,45 @@ def search_chunks(query: str, n_results: int = 3):
     return results
 
 
+def list_documents():
+    """
+    Return the names of indexed documents.
+    """
+
+    results = collection.get()
+
+    documents = set()
+
+    for metadata in results["metadatas"]:
+
+        if metadata:
+
+            documents.add(
+                metadata.get(
+                    "source",
+                    "Unknown"
+                )
+            )
+
+    return sorted(documents)
+
+
 if __name__ == "__main__":
 
-    print("ChromaDB initialized successfully.")
+    print("================================")
+    print("StudyBuddy ChromaDB")
+    print("================================")
 
-    print(f"Collection: {collection.name}")
-    print(f"Existing documents: {collection.count()}")
+    print(
+        f"Collection: {collection.name}"
+    )
 
-query = input("\nAsk StudyBuddy something: ")
+    print(
+        f"Total chunks: {collection.count()}"
+    )
 
-results = search_chunks(query, n_results=3)
+    print("\nIndexed documents:")
 
-print("\n========== SEARCH RESULTS ==========\n")
+    for document in list_documents():
 
-for i, document in enumerate(results["documents"][0]):
-
-    print(f"--- Result {i + 1} ---")
-    print(document)
-    print()
+        print(f"📄 {document}")
