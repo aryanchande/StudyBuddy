@@ -27,10 +27,11 @@ def get_document_chunks(source: str):
 
 def summarize_document(source: str):
     """
-    Generate a faster structured summary.
+    Generate a fast, grounded summary.
 
-    Uses a small number of LLM calls instead of
-    one call per chunk group.
+    Uses at most 3 Ollama calls:
+    - 2 section summaries
+    - 1 final synthesis
     """
 
     chunks = get_document_chunks(source)
@@ -38,19 +39,14 @@ def summarize_document(source: str):
     if not chunks:
         return "No indexed content found for this document."
 
-    # Combine chunks into larger sections.
-    # This reduces the number of Ollama calls.
-    section_size = 12
+    # Limit the amount of context per call.
+    # This keeps generation manageable for Qwen 1.5B.
+    midpoint = len(chunks) // 2
 
-    sections = []
-
-    for start in range(0, len(chunks), section_size):
-
-        section = "\n\n".join(
-            chunks[start:start + section_size]
-        )
-
-        sections.append(section)
+    sections = [
+        "\n\n".join(chunks[:midpoint]),
+        "\n\n".join(chunks[midpoint:])
+    ]
 
     partial_summaries = []
 
@@ -64,7 +60,7 @@ def summarize_document(source: str):
         prompt = f"""
 You are StudyBuddy, an academic learning assistant.
 
-Summarize ONLY the study material below.
+Summarize ONLY the study material provided below.
 
 Include:
 - Important concepts
@@ -73,10 +69,12 @@ Include:
 - Classifications
 - Important examples
 
-Do not add outside knowledge.
-Do not invent information.
-
-Use concise bullet points.
+Rules:
+- Use ONLY the provided material.
+- Do not add outside knowledge.
+- Do not invent information.
+- Use concise bullet points.
+- Preserve important terminology from the material.
 
 Study Material:
 ----------------
@@ -91,34 +89,44 @@ Study Material:
                     "role": "user",
                     "content": prompt
                 }
-            ]
+            ],
+            options={
+                "temperature": 0.2,
+                "num_predict": 500
+            }
         )
 
         partial_summaries.append(
             response["message"]["content"]
         )
 
-    # Final synthesis
-    combined = "\n\n".join(partial_summaries)
+    combined = "\n\n".join(
+        partial_summaries
+    )
+
+    print("Creating final summary...")
 
     final_prompt = f"""
 You are StudyBuddy.
 
-Create one final study summary from the
-summaries below.
+Create one concise exam-revision summary
+from the two summaries below.
 
 Use ONLY the information provided.
 
-Structure the result as:
+Structure:
 
 ## 1. Main Concepts
 ## 2. Important Definitions
 ## 3. Key Points
 ## 4. Important Examples
 
-Keep it concise and useful for exam revision.
-
-Do not add outside knowledge.
+Rules:
+- Do not add outside knowledge.
+- Do not invent information.
+- Remove repetition.
+- Keep important technical terminology.
+- Keep the final answer concise.
 
 Summaries:
 ----------------
@@ -133,12 +141,14 @@ Summaries:
                 "role": "user",
                 "content": final_prompt
             }
-        ]
+        ],
+        options={
+            "temperature": 0.2,
+            "num_predict": 700
+        }
     )
 
     return response["message"]["content"]
-
-
 if __name__ == "__main__":
 
     print("================================")

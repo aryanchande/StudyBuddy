@@ -12,21 +12,32 @@ env/
 .env
 .env.*
 
+# Streamlit
+.streamlit/secrets.toml
+
+# ChromaDB / vector database
+chroma_db/
+chroma/
+data/chroma/
+data/chroma_db/
+
+# Local progress
+data/progress.json
+
+# Local documents
+data/documents/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
 # IDE
 .vscode/
 .idea/
 
-# OS
-.DS_Store
-Thumbs.db
-
-# StudyBuddy data
-data/
-chroma_db/
-
-# Python cache
-.pytest_cache/
-
-# Logs
-*.log
-data/progress.json
+# Temporary files
+*.tmp
+*.temp

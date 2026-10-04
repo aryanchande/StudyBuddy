@@ -1,22 +1,24 @@
 import sys
 from pathlib import Path
+import pandas as pd
 
 import streamlit as st
 
 
-# ============================================================
+#====================================
 # PATH SETUP
-# ============================================================
+#====================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = PROJECT_ROOT / "app"
 
-sys.path.insert(0, str(APP_DIR))
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
 
 
-# ============================================================
+#========================================================
 # IMPORTS
-# ============================================================
+#========================================================
 
 from ingest import ingest_pdf
 from rag import generate_answer
@@ -30,16 +32,53 @@ from progress import (
 )
 
 
-# ============================================================
+#========================================================
 # PAGE CONFIG
-# ============================================================
-
+#========================================================
 st.set_page_config(
     page_title="StudyBuddy",
     page_icon="📚",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+#========================================================
+# CUSTOM STYLING
+#========================================================
+st.markdown(
+    """
+    <style>
+
+    .main-title {
+        font-size: 42px;
+        font-weight: 700;
+        margin-bottom: 0;
+    }
+
+    .subtitle {
+        font-size: 18px;
+        opacity: 0.75;
+        margin-top: 0;
+    }
+
+    .feature-card {
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(128, 128, 128, 0.25);
+        margin-bottom: 15px;
+    }
+
+    .section-title {
+        font-size: 24px;
+        font-weight: 650;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # ============================================================
 # INITIALIZE SESSION STATE
@@ -60,22 +99,143 @@ if "quiz_percentage" not in st.session_state:
 if "generated_quiz_document" not in st.session_state:
     st.session_state.generated_quiz_document = None
 
+if "quiz_id" not in st.session_state:
+    st.session_state.quiz_id = 0
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.markdown("## 📚 StudyBuddy")
+
+    st.caption(
+        "AI-Powered Personalized Learning Assistant"
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 🧭 Navigation")
+
+    st.info(
+        "Use the tabs above to move between "
+        "learning tools."
+    )
+
+    st.markdown("---")
+
+    st.markdown("### 📄 Study Materials")
+
+    try:
+        sidebar_documents = list_documents()
+
+        if sidebar_documents:
+
+            st.metric(
+                "Indexed Documents",
+                len(sidebar_documents)
+            )
+
+            for document in sidebar_documents:
+                st.caption(f"📄 {document}")
+
+        else:
+
+            st.caption(
+                "No documents indexed yet."
+            )
+
+    except Exception as error:
+
+        st.caption(
+            f"Unable to load documents: {error}"
+        )
+
+    st.markdown("---")
+
+    st.markdown("### 🤖 AI Model")
+
+    st.caption("Qwen 2.5 — 1.5B")
+
+    st.caption("Embeddings: nomic-embed-text")
+
+    st.markdown("---")
+
+    st.caption(
+        "StudyBuddy • Local AI Learning Assistant"
+    )
 
 # ============================================================
 # HEADER
 # ============================================================
 
-st.title("📚 StudyBuddy")
+st.markdown(
+    '<div class="main-title">📚 StudyBuddy</div>',
+    unsafe_allow_html=True
+)
 
-st.subheader(
-    "AI-Powered Personalized Learning Assistant"
+st.markdown(
+    '<div class="subtitle">'
+    'AI-Powered Personalized Learning Assistant'
+    '</div>',
+    unsafe_allow_html=True
 )
 
 st.write(
-    "Upload your study material and use AI to "
-    "ask questions, generate summaries, and test "
-    "your knowledge."
+    "Turn your study material into an interactive "
+    "learning experience."
 )
+
+st.markdown("---")
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.markdown(
+        """
+        <div class="feature-card">
+        <h3>💬 Ask</h3>
+        <p>Ask questions directly from your study material.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col2:
+    st.markdown(
+        """
+        <div class="feature-card">
+        <h3>📝 Summarize</h3>
+        <p>Generate concise revision summaries.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col3:
+    st.markdown(
+        """
+        <div class="feature-card">
+        <h3>🧠 Quiz</h3>
+        <p>Generate AI-powered MCQ quizzes.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+with col4:
+    st.markdown(
+        """
+        <div class="feature-card">
+        <h3>📊 Track</h3>
+        <p>Monitor quiz scores and learning progress.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+st.markdown("---")
 
 
 # ============================================================
@@ -140,8 +300,16 @@ if uploaded_files:
             except Exception as error:
 
                 st.sidebar.error(
-                    f"Indexing error: {error}"
-                )
+        "❌ Unable to process this PDF."
+    )
+
+                st.sidebar.info(
+        "Please make sure the file is a valid PDF "
+        "and try again."
+    )
+
+                with st.sidebar.expander("Technical details"):
+                    st.code(str(error))
 
         else:
 
@@ -175,12 +343,13 @@ if documents:
 # TABS
 # ============================================================
 
-tab_qa, tab_summary, tab_quiz, tab_dashboard = st.tabs(
+tab_dashboard, tab_qa, tab_summary, tab_quiz, tab_progress = st.tabs(
     [
-        "💬 Ask AI",
+        "🏠 Dashboard",
+        "💬 Ask",
         "📝 Summary",
         "🧠 Quiz",
-        "📊 Dashboard"
+        "📊 Progress"
     ]
 )
 
@@ -259,8 +428,16 @@ with tab_qa:
                     except Exception as error:
 
                         st.error(
-                            f"Error: {error}"
-                        )
+    "❌ Unable to generate an answer."
+)
+
+                        st.info(
+    "Try asking a question related to "
+    "your uploaded study material."
+)
+
+                        with st.expander("Technical details"):
+                            st.code(str(error))
 
 
 # ============================================================
@@ -306,8 +483,16 @@ with tab_summary:
                 except Exception as error:
 
                     st.error(
-                        f"Error generating summary: {error}"
-                    )
+    "❌ Summary generation failed."
+)
+
+                    st.info(
+    "The local AI model may still be processing "
+    "the document. Please try again."
+)
+
+                    with st.expander("Technical details"):
+                        st.code(str(error))
 
 
 # ============================================================
@@ -347,6 +532,7 @@ with tab_quiz:
         )
 
         st.write("")
+        
 
         if st.button(
             "🎯 Generate Quiz",
@@ -355,15 +541,20 @@ with tab_quiz:
         ):
 
             # Clear old quiz
+            if "quiz_id" not in st.session_state:
+                st.session_state.quiz_id = 0
             st.session_state.quiz = None
             st.session_state.quiz_submitted = False
             st.session_state.quiz_score = 0
             st.session_state.quiz_percentage = 0.0
+            st.session_state.quiz_id += 1
 
-            with st.spinner(
-                "🤖 Generating quiz... "
-                "This may take a little time."
-            ):
+            with st.status(                             "🤖 Generating quiz...",
+            expanded=True
+            ) as status:
+
+                st.write("📄 Reading indexed study material...")
+                st.write("🧠 Asking Qwen to generate questions...")
 
                 try:
 
@@ -371,22 +562,67 @@ with tab_quiz:
                         source=quiz_document_selector,
                         number_of_questions=question_count
                     )
-
-                    # Validate basic response
-                    if not quiz:
-
+                    st.write(
+    "DEBUG — quiz returned:",
+    type(quiz).__name__,
+    len(quiz) if isinstance(quiz, list) else "N/A"
+)
+                    st.write("✅ Quiz generated. Validating questions...")
+# ==========================================
+# FINAL QUIZ SAFETY VALIDATION
+# ==========================================
+        
+                    if quiz is None:
                         raise ValueError(
-                            "The AI returned an empty quiz."
-                        )
+        "Quiz generation returned no result."
+    )
 
-                    if not isinstance(
-                        quiz,
-                        list
-                    ):
-
+                    if not isinstance(quiz, list):
                         raise ValueError(
-                            "Invalid quiz format returned by AI."
-                        )
+        f"Invalid quiz format: {type(quiz).__name__}"
+    )
+
+                    if len(quiz) == 0:
+                        raise ValueError(
+        "Quiz generation failed. Check the terminal for the "
+        "actual generation/validation error."
+    )
+
+                    if not isinstance(quiz, list):
+                        raise ValueError(
+        "Invalid quiz format returned by AI."
+    )
+
+                    for index, question in enumerate(quiz, start=1):
+
+                        required_fields = [
+        "question",
+        "options",
+        "answer",
+        "explanation"
+    ]
+
+                        for field in required_fields:
+
+                            if field not in question:
+                                raise ValueError(
+                f"Question {index}: "
+                f"Missing field '{field}'."
+            )
+
+                        if len(question["options"]) != 4:
+                            raise ValueError(
+            f"Question {index}: "
+            "Expected exactly 4 options."
+        )
+
+                        answer = int(question["answer"])
+
+                        if answer not in [1, 2, 3, 4]:
+                            raise ValueError(
+            f"Question {index}: "
+            "Answer must be between 1 and 4."
+        )
 
                     # Store generated quiz
                     st.session_state.quiz = quiz
@@ -396,6 +632,11 @@ with tab_quiz:
                     st.session_state.generated_quiz_document = (
                         quiz_document_selector
                     )
+                    status.update(
+    label="✅ Quiz generated successfully!",
+    state="complete",
+    expanded=False
+)
 
                     st.session_state.quiz_submitted = False
 
@@ -447,7 +688,7 @@ with tab_quiz:
             answers[index] = st.radio(
                 "Choose your answer:",
                 options,
-                key=f"quiz_answer_{index}",
+                key=f"quiz_answer_{st.session_state.quiz_id}_{index}",
                 index=None
             )
 
@@ -622,8 +863,8 @@ with tab_quiz:
 
             # Get submitted radio answer
             selected_answer = st.session_state.get(
-                f"quiz_answer_{index}"
-            )
+    f"quiz_answer_{st.session_state.quiz_id}_{index}"
+)
 
             if (
                 selected_answer
@@ -666,39 +907,118 @@ with tab_dashboard:
 
     stats = get_statistics()
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
 
         st.metric(
-            "📝 Quizzes Taken",
-            stats["total_quizzes"]
-        )
+        "📝 Quizzes Taken",
+        stats["total_quizzes"]
+    )
 
     with col2:
 
         st.metric(
-            "📈 Average Score",
-            f"{stats['average_score']:.1f}%"
-        )
+        "📈 Average Score",
+        f"{stats['average_score']:.1f}%"
+    )
 
     with col3:
 
         st.metric(
-            "🏆 Best Score",
-            f"{stats['best_score']:.1f}%"
-        )
+        "🏆 Best Score",
+        f"{stats['best_score']:.1f}%"
+    )
 
     with col4:
 
         st.metric(
-            "❓ Questions Attempted",
-            stats["total_questions"]
-        )
+        "❓ Questions Attempted",
+        stats["total_questions"]
+    )
+
+    with col5:
+
+        st.metric(
+        "📚 Documents",
+        len(documents)
+    )
 
     st.markdown("---")
 
     progress = load_progress()
+#========================================================
+# PERFORMANCE CHART
+#========================================================
+
+if progress:
+
+    st.subheader("📈 Performance Over Time")
+
+    chart_data = pd.DataFrame(
+        [
+            {
+                "Attempt": index + 1,
+                "Score": attempt["percentage"]
+            }
+            for index, attempt in enumerate(progress)
+        ]
+    )
+
+    chart_data = chart_data.set_index("Attempt")
+
+    st.line_chart(
+        chart_data["Score"]
+    )
+
+#========================================================
+# PER-DOCUMENT PERFORMANCE
+#========================================================
+if progress:
+
+    st.subheader("📚 Performance by Document")
+
+    document_stats = {}
+
+    for attempt in progress:
+
+        document = attempt["document"]
+
+        if document not in document_stats:
+            document_stats[document] = []
+
+        document_stats[document].append(
+            attempt["percentage"]
+        )
+
+    document_rows = []
+
+    for document, scores in document_stats.items():
+
+        document_rows.append(
+            {
+                "Document": document,
+                "Attempts": len(scores),
+                "Average Score": round(
+                    sum(scores) / len(scores),
+                    1
+                ),
+                "Best Score": round(
+                    max(scores),
+                    1
+                )
+            }
+        )
+
+    document_df = pd.DataFrame(
+        document_rows
+    )
+
+    st.dataframe(
+        document_df,
+        use_container_width=True,
+        hide_index=True
+    )
 
     if not progress:
 
@@ -759,3 +1079,13 @@ with tab_dashboard:
             )
 
             st.markdown("---")
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.markdown("---")
+
+st.caption(
+    "📚 StudyBuddy • Built with Streamlit, ChromaDB, "
+    "Ollama & Qwen 2.5"
+)
